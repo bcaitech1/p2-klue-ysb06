@@ -46,7 +46,7 @@ def main():
     # Load config file
     config = {}
     if not os.path.isfile("./config.yaml"):
-        config = initialize()
+        config = initialize()   # 샘플 config.yaml 생성
     else:
         config = load_config()
 
@@ -60,7 +60,7 @@ def main():
     training_setting = config["settings"][int(config["target"])]
 
     # Load dataset
-    train_dataset = load_dataset("./data")
+    train_dataset = load_dataset(config["data_root"])
     valid_dataset = None
 
     # Load trainee
@@ -70,7 +70,7 @@ def main():
         train_dataset=train_dataset, valid_dataset=valid_dataset, 
         **training_setting["hyperparameters"]
     )
-    trainee.train() # Training
+    trainee.train(config["results_path"], config["tensorboard_log_path"]) # Training
 
 
 if __name__ == "__main__":

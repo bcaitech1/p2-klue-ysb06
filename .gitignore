@@ -133,8 +133,9 @@ dmypy.json
 *.code-workspace
 .vscode/
 
-# data folder
+# data and result folder
 [Dd]ata/
+[Rr]esults/
 
 # Training Settings
 config.yaml
