@@ -18,7 +18,7 @@ class REDataset(Dataset):
         return len(self.targets)
 
 
-def load_dataset(data_root: str, data_type="train", tokenizer="bert-base-multilingual-cased") -> None:
+def load_dataset(data_root: str, tokenizer: str, data_type="train") -> None:
     """데이터로부터 데이터셋 생성
 
     Args:
@@ -88,7 +88,7 @@ def tokenize_dataset(dataset: pd.DataFrame, pretrained_model_name: str):
         return_tensors="pt",
         padding=True,
         truncation=True,
-        max_length=100,
+        max_length=256,
         add_special_tokens=True,
     )
 
