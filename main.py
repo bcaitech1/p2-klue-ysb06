@@ -94,7 +94,7 @@ def run_pipeline(target: Union[int, None]):
         # Seed 설정
         seed_everything(seed)
 
-        train_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"])
+        train_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"], data_type="train_new")
         valid_dataset = None    # 추후 데이터 늘리고 Valid Set 만들 것
 
         # Base Model 이름, 타입 yaml 설정 읽기

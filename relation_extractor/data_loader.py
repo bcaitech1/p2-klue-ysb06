@@ -33,23 +33,44 @@ def load_dataset(data_root: str, tokenizer: str, data_type="train") -> None:
         label_type: Dict = pickle.load(f)
         label_type["blind"] = 100
 
+    data_raw: pd.DataFrame = None
     # load dataset
-    data_raw: pd.DataFrame = pd.read_csv(f"{data_root}/{data_type}/{data_type}.tsv", delimiter='\t', header=None)
+    if data_type == "train":
+        data_raw = pd.read_csv(f"{data_root}/{data_type}/{data_type}.tsv", delimiter='\t', header=None)
+        labels = []
+        for label_raw in data_raw[8]:
+            labels.append(label_type[label_raw])
+        data_raw = pd.DataFrame(
+            {
+                "sentence": data_raw[1], 
+                "entity_01": data_raw[2], 
+                "entity_02": data_raw[5], 
+                "label": labels
+            }
+        )
+    elif data_type == "train_new":
+        data_raw = pd.read_excel(f"{data_root}/{data_type}/{data_type}.xlsx", "combined_all")
+        labels = []
+        sentences = []
+        for row in data_raw.iloc:
+            labels.append(label_type[row["label"]])
+            text = row["context"].replace("{{ sbj }}", row["sbj_entity"])
+            text = text.replace("{{ obj }}", row["obj_entity"])
+            sentences.append(text)
+        
+        data_raw = pd.DataFrame(
+            {
+                "sentence": sentences, 
+                "entity_01": data_raw["sbj_entity"], 
+                "entity_02": data_raw["obj_entity"], 
+                "label": labels
+            }
+        )
+    else:
+        raise Exception("No such dataset type")    
 
-    labels = []
-    for label_raw in data_raw[8]:
-        labels.append(label_type[label_raw])
-    
-    data_raw = pd.DataFrame(
-        {
-            "sentence": data_raw[1], 
-            "entity_01": data_raw[2], 
-            "entity_02": data_raw[5], 
-            "label": labels
-        }
-    )
     # validation dataset으로 분리하려면 여기서부터 코드를 집어 넣으면 됨
-
+    print(data_raw)
     tokenized_raw = tokenize_dataset(data_raw, tokenizer)
 
     return RE_Dataset(tokenized_raw, data_raw["label"].values)
