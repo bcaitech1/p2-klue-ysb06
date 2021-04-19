@@ -9,8 +9,9 @@ from tqdm import tqdm
 
 
 def main():
-    origin_path = "./data/train/train2.tsv"
-    additional_path = "./results/추가 데이터.xlsx"
+    root_path = "/opt/ml/input/data/train_new"
+    origin_path = f"{root_path}/train.tsv"
+    additional_path = f"{root_path}/kor_re_refined.xlsx"
 
     # 원래 데이터 로드
     raw_origin: pd.DataFrame = pd.read_csv(
@@ -25,7 +26,7 @@ def main():
     raw_new = pd.read_excel(additional_path, "new_raw")
 
     # 레이블 로드. 엑셀에서 읽을 수 있도록 변환하기 위한 코드. 필요없음.
-    with open(f"./data/label_type.pkl", 'rb') as f:
+    with open(f"/opt/ml/input/data/label_type.pkl", 'rb') as f:
         label_type: Dict = pickle.load(f)
         label_type["blind"] = 100
     label_table = pd.DataFrame(list(label_type.keys()))
@@ -36,24 +37,22 @@ def main():
     raw_converted = convert_orgin(raw_origin)
 
     # new data 형식 변환
-    raw_new = convert_new_data(raw_new)
+    raw_new_converted = convert_new_data(raw_new)
 
     # 특문자 수정
     refine_special_letter(raw_converted)
-    refine_special_letter(raw_new)
+    refine_special_letter(raw_new_converted)
 
     # 데이터 병합
-    combined_raw = pd.concat([raw_converted, raw_new])
+    combined_raw = pd.concat([raw_converted, raw_new_converted])
     combined_raw.reset_index(drop=True)
 
-    if not os.path.isdir("./data/train_new"):
-        os.mkdir("./data/train_new")
-    with ExcelWriter("./data/train_new/train_new.xlsx", engine="xlsxwriter") as writer:
+    with ExcelWriter(f"{root_path}/train_new.xlsx", engine="xlsxwriter") as writer:
         # 기본 excel 엔진에 문제가 있는지 경고가 뜸
         combined_raw.to_excel(writer, "combined_all", index=False)
         raw_converted.to_excel(writer, "origin", index=False)
         raw_origin.to_excel(writer, "origin_raw", index=False)
-        raw_new.to_excel(writer, "added", index=False)
+        raw_new_converted.to_excel(writer, "added", index=False)
         raw_new.to_excel(writer, "added_raw", index=False)
         label_table.to_excel(writer, "labels_list", index=False)
 
@@ -136,10 +135,11 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
     if label == "album":
         label = "단체:상위_단체"
     elif label == "artist" or \
-            label == "author" or \
-            label == "notableWork":
+            label == "author":
         arg1 = obj
         arg2 = sbj
+        label = "인물:제작"
+    elif label == "notableWork":
         label = "인물:제작"
         # 원 데이터에서 가수를 모두 인물로 처리
     elif label == "award" or \
@@ -170,7 +170,8 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
             label == "tenant" or \
             label == "unknown" or \
             label == "vicePresident" or \
-            label == "recordLabel":
+            label == "recordLabel" or \
+            label == "ideology_group":
         label = "관계_없음"
     elif label == "birthCountry":
         label = "인물:출생_국가"
@@ -184,7 +185,6 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
     elif label == "channel" or \
             label == "developer" or \
             label == "distributor" or \
-            label == "industry" or \
             label == "publisher":
         arg1 = obj
         arg2 = sbj
@@ -242,7 +242,9 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
         label = "단체:상위_단체"
     elif label == "locatedInArea" or \
             label == "location_state" or \
-            label == "region":
+            label == "region" or \
+            label == "routeStart" or \
+            label == "routeEnd":
         label = "단체:본사_주(도)"
         # region은 개념적으로는 다르지만 문장들이 대체로 주, 도를 가리킴
     elif label == "managerClub" or \
@@ -263,7 +265,8 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
         label = "인물:부모님"
     elif label == "parentCompany":
         label = "단체:모회사"
-    elif label == "product":
+    elif label == "product" or \
+            label == "industry":
         label = "단체:제작"
     elif label == "religion":
         label = "단체:정치/종교성향"
@@ -281,21 +284,29 @@ def convert_new_label_to_origin(sbj: str, obj: str, label: str):
     elif label == "spouse":
         label = "인물:배우자"
     elif label == "death_reason":
+        arg1 = obj
+        arg2 = sbj
         label = "인물:사망_원인"
-    
+    elif label == "station":
+        label = "단체:하위_단체"
+    elif label == "breakupdate":
+        label = "단체:해산일"
         
         # 근데 정치인은 소속단체라 해도 될 것 같다.
         # 레이블 구분이 명확하지 않음
         # 그냥 국가면 출신성분/국적으로...
-
-        
+        #     
     return arg1, arg2, label
 
-def refine_special_letter(source: pd.DataFrame, print_not_refined: bool=False):
+def refine_special_letter(
+    source: pd.DataFrame, 
+    target_column: str="context", 
+    print_not_refined: bool=False
+):
     # 특수 기호 통일 및 치환 (위키식 대괄호 삭제)
     counter = 0
     for index in range(len(source)):
-        text_origin = source.at[index, "context"]
+        text_origin = source.at[index, target_column]
         text = text_origin
         text = re.sub("[☎☏◕③♤Ⓐ★□♡→•●]", "", text)
         text = re.sub("[∙・･․‧⋅ㆍ·▲▵▴△▶]", ",", text)
@@ -319,15 +330,15 @@ def refine_special_letter(source: pd.DataFrame, print_not_refined: bool=False):
         text = remove_square_bracket(text)
 
         # text = re.sub("|", " ", text)
-        source.at[index, "context"] = text
+        source.at[index, target_column] = text
         if text != text_origin:
             counter += 1
 
-    print(f"Refined {counter} texts")
+    print(f"Refined {counter} / {len(source)} texts")
     if print_not_refined:
         # 허용되는 특수 기호 외 다른 기호가 있는지 확인하는 코드, 필요 없음.
         for index, row in enumerate(source.iloc):
-            text = row["context"]
+            text = row[target_column]
             result = re.search(
                 r"""[^\w !@#$%^*&()_=+\\\/|\[\]{};:'",.<>?€£㈜\~\-¹²³⁴]""",
                 text

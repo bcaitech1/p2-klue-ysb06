@@ -7,6 +7,7 @@ import torch
 import yaml
 
 from relation_extractor.data_loader import load_dataset
+from relation_extractor.predictor import predict
 
 
 def initialize():
@@ -106,6 +107,7 @@ def run_pipeline(target: Union[int, None]):
         )
 
         trainee.train(config["checkpoints_path"], config["tensorboard_log_path"], config["train_log_path"]) # Training
+        predict(f"./results/checkpoint/{trainee.name}/last_checkpoint/", "Bert", device)
 
 
 def seed_everything(seed: int):
@@ -119,3 +121,11 @@ def seed_everything(seed: int):
 
 if __name__ == "__main__":
     run_pipeline(None)
+
+    # print(f"PyTorch version: [{torch.__version__}]")
+    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # print(f"  Target device: [{device}]")
+
+    # name = "kor-bert-new-data"
+
+    # predict(f"./results/checkpoint/{name}/last_checkpoint", "Bert", device)

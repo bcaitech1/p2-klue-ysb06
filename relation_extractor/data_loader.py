@@ -70,7 +70,6 @@ def load_dataset(data_root: str, tokenizer: str, data_type="train") -> None:
         raise Exception("No such dataset type")    
 
     # validation dataset으로 분리하려면 여기서부터 코드를 집어 넣으면 됨
-    print(data_raw)
     tokenized_raw = tokenize_dataset(data_raw, tokenizer)
 
     return RE_Dataset(tokenized_raw, data_raw["label"].values)

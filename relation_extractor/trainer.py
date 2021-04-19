@@ -81,6 +81,7 @@ class BaselineTrainee(TraineeBase):
 
         # train model
         trainer.train()
+        trainer.save_model(f"./results/checkpoint/{self.name}/last_checkpoint/")
 
         # After training
 
