@@ -12,6 +12,7 @@ def main():
     root_path = "/opt/ml/input/data/train_new"
     origin_path = f"{root_path}/train.tsv"
     additional_path = f"{root_path}/kor_re_refined.xlsx"
+    add_custom_path = f"{root_path}/adders.xlsx"
 
     # 원래 데이터 로드
     raw_origin: pd.DataFrame = pd.read_csv(
@@ -24,6 +25,9 @@ def main():
 
     # 추가 데이터(kor-re-gold) 로드
     raw_new = pd.read_excel(additional_path, "new_raw")
+
+    # 추가 데이터 로드 (직접 만든 것)
+    raw_custom = pd.read_excel(add_custom_path, "new")
 
     # 레이블 로드. 엑셀에서 읽을 수 있도록 변환하기 위한 코드. 필요없음.
     with open(f"/opt/ml/input/data/label_type.pkl", 'rb') as f:
@@ -40,20 +44,21 @@ def main():
     raw_new_converted = convert_new_data(raw_new)
 
     # 특문자 수정
-    refine_special_letter(raw_converted)
-    refine_special_letter(raw_new_converted)
+    # refine_special_letter(raw_converted)
+    # refine_special_letter(raw_new_converted)
 
     # 데이터 병합
-    combined_raw = pd.concat([raw_converted, raw_new_converted])
+    combined_raw = pd.concat([raw_converted, raw_new_converted, raw_custom])
     combined_raw.reset_index(drop=True)
 
     with ExcelWriter(f"{root_path}/train_new.xlsx", engine="xlsxwriter") as writer:
-        # 기본 excel 엔진에 문제가 있는지 경고가 뜸
+        # 기본 excel 엔진은 문제가 있는지 경고가 뜸 -> xlsxwriter로 수정
         combined_raw.to_excel(writer, "combined_all", index=False)
         raw_converted.to_excel(writer, "origin", index=False)
         raw_origin.to_excel(writer, "origin_raw", index=False)
         raw_new_converted.to_excel(writer, "added", index=False)
         raw_new.to_excel(writer, "added_raw", index=False)
+        raw_custom.to_excel(writer, "custom_raw", index=False)
         label_table.to_excel(writer, "labels_list", index=False)
 
         writer.save()

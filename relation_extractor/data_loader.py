@@ -1,9 +1,13 @@
 import pickle as pickle
 from typing import Dict
+
 import pandas as pd
+import torch
+from pandas import ExcelWriter
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
-import torch
+from tqdm import tqdm
 
 
 class REDataset(Dataset):
@@ -72,7 +76,74 @@ def load_dataset(data_root: str, tokenizer: str, data_type="train") -> None:
     # validation dataset으로 분리하려면 여기서부터 코드를 집어 넣으면 됨
     tokenized_raw = tokenize_dataset(data_raw, tokenizer)
 
-    return RE_Dataset(tokenized_raw, data_raw["label"].values)
+    return RE_Dataset(tokenized_raw, data_raw["label"].values), None
+
+
+def load_k_fold_train_dataset(data_root: str, tokenizer: str, k: int=5, seed: int=None):
+    print("Loading dataset...")
+    with open(f"{data_root}/label_type.pkl", 'rb') as f:
+        label_type: Dict = pickle.load(f)
+        label_type["blind"] = 100
+    
+    # 주의: new type만 읽을 수 있음
+    data_raw = pd.read_excel(f"{data_root}/train_new/train_new.xlsx", "combined_all")
+    labels = []
+    sentences = []
+    
+    # 엔티티 추가
+    for index, row in enumerate(data_raw.iloc):
+        text: str = row["context"]
+        if text.find("{{ sbj }}") == -1 or text.find("{{ obj }}") == -1:
+            raise Exception(f"{index} row data corrupted\n\n{row}")
+        
+        labels.append(label_type[row["label"]])
+        text = text.replace("{{ sbj }}", str(row["sbj_entity"]))
+        text = text.replace("{{ obj }}", str(row["obj_entity"]))
+        sentences.append(text)
+    
+    data_raw = pd.DataFrame(
+        {
+            "sentence": sentences, 
+            "entity_01": data_raw["sbj_entity"].astype(str), 
+            "entity_02": data_raw["obj_entity"].astype(str), 
+            "label": labels
+        }
+    )
+
+    print("Splitting...")
+    k_fold_splitter = StratifiedKFold(n_splits=k, shuffle=(seed != None), random_state=seed)
+    k_fold_data_indexes = k_fold_splitter.split(X=data_raw, y=data_raw["label"])
+
+    k_fold_raws = []
+    for train_indexes, valid_indexes in k_fold_data_indexes:
+        train_raw: pd.DataFrame = data_raw.iloc[train_indexes]
+        valid_raw: pd.DataFrame = data_raw.iloc[valid_indexes]
+        
+        train_raw.reset_index(drop=True)
+        valid_raw.reset_index(drop=True)
+        k_fold_raws.append((train_raw, valid_raw))
+    
+    # K-Fold 확을 위한 저장용
+    with ExcelWriter(f"./results/kfold_results.xlsx", engine="xlsxwriter") as writer:
+        print("Saving...")
+        for index, raw_group in enumerate(k_fold_raws):
+            raw_group[0].to_excel(writer, f"Train {index}", index=False)
+            raw_group[1].to_excel(writer, f"Valid {index}", index=False)
+        
+        writer.save()
+
+    print(f"Tokenizing by {tokenizer}...")
+    train_set = []
+    valid_set = []
+    for raw in k_fold_raws:
+        tokenized_train = tokenize_dataset(raw[0], tokenizer)
+        tokenized_valid = tokenize_dataset(raw[1], tokenizer)
+        train_set.append(RE_Dataset(tokenized_train, raw[0]["label"].values))
+        valid_set.append(RE_Dataset(tokenized_valid, raw[1]["label"].values))
+    
+    print("Ready to serve!")
+    return train_set, valid_set
+
 
 
 # Baseline codes
@@ -113,3 +184,8 @@ def tokenize_dataset(dataset: pd.DataFrame, pretrained_model_name: str):
     )
 
     return tokenized_sentences
+
+
+if __name__ == "__main__":
+    # Test K-Fold
+    load_k_fold_train_dataset("/opt/ml/input/data", "kykim/bert-kor-base")

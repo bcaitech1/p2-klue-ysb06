@@ -7,6 +7,7 @@ import transformers
 from torch.nn import Module
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
+from tqdm import tqdm
 
 from dataset_hub.analyzer import refine_special_letter
 
@@ -55,6 +56,63 @@ def predict(model_path: str, model_type: str, target_device: torch.device):
     print("Inference Finished!")
 
 
+def predict_fold_enssemble(model_path: str, model_name: str, model_type: str, target_device: torch.device):
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    models = []
+
+    for n in range(5):
+        config = getattr(
+            transformers, 
+            model_type + "Config").from_pretrained(f"{model_path}/last_checkpoint/{n}")
+        config.num_labels = 42
+
+        model: Module = getattr(
+            transformers, 
+            model_type + "ForSequenceClassification").from_pretrained(f"{model_path}/last_checkpoint/{n}", config=config)
+        model = model.to(target_device)
+        model.eval()
+        models.append(model)
+
+    # load test datset
+    test_dataset_dir = "/opt/ml/input/data/test/test.tsv"
+    test_dataset, test_label = load_test_dataset(test_dataset_dir, tokenizer)
+    test_dataset = TestDataset(test_dataset ,test_label)
+
+    # Inference
+    dataloader = DataLoader(test_dataset, batch_size=40, shuffle=False)    
+    output_pred = []
+
+    result_list = [[] for _ in range(len(models))]
+    for data in tqdm(dataloader):
+        with torch.no_grad():
+            for index, model in enumerate(models):
+                output = model(
+                    input_ids=data['input_ids'].to(target_device),
+                    attention_mask=data['attention_mask'].to(target_device),
+                    token_type_ids=data['token_type_ids'].to(target_device)
+                )
+
+                logit: torch.Tensor = output[0]
+                logit = logit.detach().cpu().numpy()
+                result = np.argmax(logit, axis=-1)
+
+                result_list[index].append(result.tolist())
+
+    # Inference End
+    output_df = pd.DataFrame()
+    for n in range(len(result_list)):
+        output_df[f"pred{n}"] = np.array(result_list[n]).flatten()
+
+    # output = pd.DataFrame(pred_answer, columns=['pred'])
+    # output.to_csv('./results/submission.csv', index=False)
+    output_df = output_df.mode(axis=1)[0].to_frame()
+    output_df.columns = ["pred"]
+    print(output_df)
+    output_df.to_excel("./results/test.xlsx", engine="xlsxwriter")
+    print("Inference Finished!")
+
+
 def load_test_dataset(dataset_dir, tokenizer):
     test_dataset = load_data(dataset_dir)
     test_label = test_dataset['label'].values
@@ -94,7 +152,7 @@ def preprocessing_dataset(dataset, label_type):
         'label': label, 
     })
 
-    refine_special_letter(out_dataset, target_column="sentence", print_not_refined=True)
+    # refine_special_letter(out_dataset, target_column="sentence", print_not_refined=True)
 
     return out_dataset
 

@@ -6,8 +6,8 @@ import numpy as np
 import torch
 import yaml
 
-from relation_extractor.data_loader import load_dataset
-from relation_extractor.predictor import predict
+from relation_extractor.data_loader import load_dataset, load_k_fold_train_dataset
+from relation_extractor.predictor import predict, predict_fold_enssemble
 
 
 def initialize():
@@ -95,8 +95,9 @@ def run_pipeline(target: Union[int, None]):
         # Seed 설정
         seed_everything(seed)
 
-        train_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"], data_type="train_new")
-        valid_dataset = None    # 추후 데이터 늘리고 Valid Set 만들 것
+        # 옛날 방식과 호환이 안 된다...이럴 거면 뭐하러 프로그램 구조를 이렇게 짰나...ㅠㅠ
+        # train_dataset, valid_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"], data_type="train_new")
+        train_dataset, valid_dataset = load_k_fold_train_dataset(data_root=config["data_root"], tokenizer=model_info["name"], seed=seed)
 
         # Base Model 이름, 타입 yaml 설정 읽기
         trainee_class = getattr(trainer, trainee_setting["trainee_type"])
@@ -106,8 +107,18 @@ def run_pipeline(target: Union[int, None]):
             **trainee_setting
         )
 
-        trainee.train(config["checkpoints_path"], config["tensorboard_log_path"], config["train_log_path"]) # Training
-        predict(f"./results/checkpoint/{trainee.name}/last_checkpoint/", "Bert", device)
+        trainee.train(
+            config["checkpoints_path"], 
+            config["tensorboard_log_path"], 
+            config["train_log_path"]
+        ) # Training
+        # predict(f"./results/checkpoint/{trainee.name}/last_checkpoint/", "Bert", device)
+        predict_fold_enssemble(
+            f"./results/checkpoint/{trainee.name}/last_checkpoint/",
+            model_info["name"], 
+            model_info["type"], 
+            device
+        )
 
 
 def seed_everything(seed: int):
@@ -129,3 +140,11 @@ if __name__ == "__main__":
     # name = "kor-bert-new-data"
 
     # predict(f"./results/checkpoint/{name}/last_checkpoint", "Bert", device)
+    # predict_fold_enssemble(f"./results/checkpoint/kor-bert-k-fold/last_checkpoint", "kykim/bert-kor-base", "Bert", device)
+
+# 5개중 가장 성능 높은 것 제출
+# xlm-???? 적용 (앙상블 하지 말고)
+# 앙상블 제출 (소프트 보팅)
+# 클래스 별 모델 정확도 측정 -> validation을 다시 수행해서 클래스 별로 맞추고 못 맞춘 것을 체크
+# ==> 독립성 검정도 할 수 있을까? ==> 모델 별 클래스 추론이 명확히 차이가 난다면 해당 클래스의 모델 별 가중치를 달리하여 적용
+# 시간이 되면 xlm 앙상블 적용
