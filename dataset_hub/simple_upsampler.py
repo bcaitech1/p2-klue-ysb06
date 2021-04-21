@@ -24,7 +24,7 @@ def main():
 
     # 부족분 업 샘플링
     # 5개도 안될 경우 Fold train set 안에 레이블이 없을 수도 있으므로
-    upsample_to_limit(raw_converted)
+    upsample_to_limit(raw_converted, 5)
 
     raw_converted.to_excel(f"{root_path}/train_new.xlsx", "combined_all", index=False, engine="xlsxwriter")
 
@@ -33,9 +33,21 @@ def upsample_to_limit(df: pd.DataFrame, limit: int):
     with open(f"/opt/ml/input/data/label_type.pkl", 'rb') as f:
         label_list: Dict = pickle.load(f)
 
+    print("Before...")
     for label in label_list.keys():
-        label_count = df[df["label"] == label].count()
-        print(label_count)
+        label_rows = df[df["label"] == label]
+        label_count = label_rows.count()["label"]
+        print(f"{label} : {label_count}")
+        if label_count < limit:
+            upsample_count = int(4 / label_count)
+            for _ in range(upsample_count):
+                df = df.append(label_rows)
+    
+    print("After...")
+    for label in label_list.keys():
+        label_rows = df[df["label"] == label]
+        label_count = label_rows.count()["label"]
+        print(f"{label} : {label_count}")
 
 
 def convert_orgin(source: pd.DataFrame):
