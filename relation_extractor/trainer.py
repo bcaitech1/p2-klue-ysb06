@@ -18,8 +18,8 @@ class TraineeBase:
     def __init__(
         self,
         device: torch.device,
-        train_dataset: Dataset,
-        valid_dataset: Dataset,
+        train_dataset: List[Dataset],
+        valid_dataset: List[Dataset],
         trainee_name: str,
         trainee_type: str,
         hyperparameters: dict
@@ -39,8 +39,8 @@ class BaselineTrainee(TraineeBase):
     def __init__(
             self,
             device: torch.device,
-            train_dataset: Dataset,
-            valid_dataset: Dataset,
+            train_dataset: List[Dataset],
+            valid_dataset: List[Dataset],
             trainee_name: str,
             trainee_type: str,
             hyperparameters: dict
@@ -48,12 +48,11 @@ class BaselineTrainee(TraineeBase):
         super().__init__(device, train_dataset, valid_dataset, trainee_name, trainee_type, hyperparameters)
 
     def train(self, result_path: str, tensorboard_path: str, log_path: str):
-        # load dataset
-        RE_train_dataset = self.train_set
-
         # hyperparameters
         model_info = self.hyperparameters["model"]
         args = self.hyperparameters["args"]
+
+        tokenizer = AutoTokenizer.from_pretrained(model_info["name"])
 
         # setting model hyperparameter
         config = getattr(transformers, model_info["type"] + "Config").from_pretrained(model_info["name"])
@@ -62,28 +61,36 @@ class BaselineTrainee(TraineeBase):
         model: torch.nn.Module = getattr(transformers, model_info["type"] + "ForSequenceClassification").from_pretrained(model_info["name"], config=config)
         model.to(self.device)
 
-        for name, param in model.named_parameters():
-            if "classifier" in name:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
+        # classifier 고정은 사용하지 않음
+        # 처음 몇 Epoch만 고정해제 하고 이후 고정시키는 방법도 고려해 볼 수 있겠음
+        # for name, param in model.named_parameters():
+        #     if "classifier" in name:
+        #         param.requires_grad = True
+        #     else:
+        #         param.requires_grad = False
 
         # 사용한 option 외에도 다양한 option들이 있습니다.
         # https://huggingface.co/transformers/main_classes/trainer.html#trainingarguments 참고해주세요.
         training_args = TrainingArguments(
             output_dir=f"{result_path}/{self.name}",    # output directory
-            save_total_limit=3,                         # number of total save model.
-            save_steps=500,                             # model saving step.
+            save_total_limit=1,                         # number of total save model.
+            # save_steps=500,                             # model saving step.
             logging_dir=f"{tensorboard_path}/{self.name}",      # directory for storing logs
             logging_steps=200,                          # log saving step.
+            logging_first_step=True,
+            evaluation_strategy="no",
+            metric_for_best_model="accuracy",
+            load_best_model_at_end=True,
             **args
         )
 
         trainer = Trainer(
             # the instantiated 🤗 Transformers model to be trained
             model=model,
+            tokenizer=tokenizer,
             args=training_args,             # training arguments, defined above
-            train_dataset=RE_train_dataset, # training dataset
+            train_dataset=self.train_set, # training dataset
+            compute_metrics=compute_metrics,
             callbacks=[TrainingEndCallback(self.name, self.hyperparameters, log_path)]
         )
 
@@ -140,8 +147,9 @@ class BaselineKFoldTrainee(TraineeBase):
             # Set training env. and hyperparameters
             training_args: TrainingArguments = TrainingArguments(
                 output_dir=f"{result_path}/{self.name}/{index}",    # output directory
-                save_total_limit=3,                         # number of total save model.
-                save_steps=500,                             # model saving step. Best 저장 정책이므로 무시됨.
+                save_total_limit=1,                         # number of total save model. Best 저장 정책에서도 동작함. 주의
+                # save_steps=4510,                           # model saving step. Best 저장 정책이므로 무시됨.
+                # save_strategy="no",
                 logging_dir=f"{tensorboard_path}/{self.name}/{index}",      # directory for storing logs
                 logging_steps=100,                          # log saving step.
                 logging_first_step=True,

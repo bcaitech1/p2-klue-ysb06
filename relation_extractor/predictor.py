@@ -12,8 +12,8 @@ from tqdm import tqdm
 from dataset_hub.analyzer import refine_special_letter
 
 
-def predict(model_path: str, model_type: str, target_device: torch.device):
-    tokenizer = AutoTokenizer.from_pretrained("kykim/bert-kor-base")
+def predict(model_path: str, model_name: str, model_type: str, target_device: torch.device):
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     config = getattr(
         transformers, 
@@ -40,7 +40,7 @@ def predict(model_path: str, model_type: str, target_device: torch.device):
             outputs = model(
                 input_ids=data['input_ids'].to(target_device),
                 attention_mask=data['attention_mask'].to(target_device),
-                token_type_ids=data['token_type_ids'].to(target_device)
+                # token_type_ids=data['token_type_ids'].to(target_device)
             )
         logits = outputs[0]
         logits = logits.detach().cpu().numpy()
@@ -56,12 +56,12 @@ def predict(model_path: str, model_type: str, target_device: torch.device):
     print("Inference Finished!")
 
 
-def predict_fold_enssemble(model_path: str, model_name: str, model_type: str, target_device: torch.device):
+def predict_fold_enssemble(model_path: str, model_name: str, model_type: str, target_device: torch.device, fold: int=5):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     models = []
 
-    for n in range(5):
+    for n in range(fold):
         config = getattr(
             transformers, 
             model_type + "Config").from_pretrained(f"{model_path}/last_checkpoint/{n}")
@@ -90,7 +90,7 @@ def predict_fold_enssemble(model_path: str, model_name: str, model_type: str, ta
                 output = model(
                     input_ids=data['input_ids'].to(target_device),
                     attention_mask=data['attention_mask'].to(target_device),
-                    token_type_ids=data['token_type_ids'].to(target_device)
+                    # token_type_ids=data['token_type_ids'].to(target_device)
                 )
 
                 logit: torch.Tensor = output[0]
@@ -109,7 +109,8 @@ def predict_fold_enssemble(model_path: str, model_name: str, model_type: str, ta
     output_df = output_df.mode(axis=1)[0].to_frame()
     output_df.columns = ["pred"]
     print(output_df)
-    output_df.to_excel("./results/test.xlsx", engine="xlsxwriter")
+    # output_df.to_excel("./results/test.xlsx", engine="xlsxwriter")
+    output_df.to_csv('./results/submission.csv', index=False)
     print("Inference Finished!")
 
 

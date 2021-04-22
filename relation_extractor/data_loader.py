@@ -74,6 +74,7 @@ def load_dataset(data_root: str, tokenizer: str, data_type="train") -> None:
         raise Exception("No such dataset type")    
 
     # validation dataset으로 분리하려면 여기서부터 코드를 집어 넣으면 됨
+    print(f"Tokenizing...{tokenizer}")
     tokenized_raw = tokenize_dataset(data_raw, tokenizer)
 
     return RE_Dataset(tokenized_raw, data_raw["label"].values), None
@@ -111,26 +112,29 @@ def load_k_fold_train_dataset(data_root: str, tokenizer: str, k: int=5, seed: in
     )
 
     print("Splitting...")
-    k_fold_splitter = StratifiedKFold(n_splits=k, shuffle=(seed != None), random_state=seed)
-    k_fold_data_indexes = k_fold_splitter.split(X=data_raw, y=data_raw["label"])
+    if k > 1:
+        k_fold_splitter = StratifiedKFold(n_splits=k, shuffle=(seed != None), random_state=seed)
+        k_fold_data_indexes = k_fold_splitter.split(X=data_raw, y=data_raw["label"])
 
-    k_fold_raws = []
-    for train_indexes, valid_indexes in k_fold_data_indexes:
-        train_raw: pd.DataFrame = data_raw.iloc[train_indexes]
-        valid_raw: pd.DataFrame = data_raw.iloc[valid_indexes]
+        k_fold_raws = []
+        for train_indexes, valid_indexes in k_fold_data_indexes:
+            train_raw: pd.DataFrame = data_raw.iloc[train_indexes]
+            valid_raw: pd.DataFrame = data_raw.iloc[valid_indexes]
+            
+            train_raw.reset_index(drop=True)
+            valid_raw.reset_index(drop=True)
+            k_fold_raws.append((train_raw, valid_raw))
         
-        train_raw.reset_index(drop=True)
-        valid_raw.reset_index(drop=True)
-        k_fold_raws.append((train_raw, valid_raw))
-    
-    # K-Fold 확을 위한 저장용
-    with ExcelWriter(f"./results/kfold_results.xlsx", engine="xlsxwriter") as writer:
-        print("Saving...")
-        for index, raw_group in enumerate(k_fold_raws):
-            raw_group[0].to_excel(writer, f"Train {index}", index=False)
-            raw_group[1].to_excel(writer, f"Valid {index}", index=False)
-        
-        writer.save()
+        # K-Fold 확을 위한 저장용
+        with ExcelWriter(f"./results/kfold_results.xlsx", engine="xlsxwriter") as writer:
+            print("Saving...")
+            for index, raw_group in enumerate(k_fold_raws):
+                raw_group[0].to_excel(writer, f"Train {index}", index=False)
+                raw_group[1].to_excel(writer, f"Valid {index}", index=False)
+            
+            writer.save()
+    else:
+        train_raw = data_raw    # 구현하다 말음 주의
 
     print(f"Tokenizing by {tokenizer}...")
     train_set = []

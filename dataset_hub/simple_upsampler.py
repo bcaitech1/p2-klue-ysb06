@@ -24,7 +24,7 @@ def main():
 
     # 부족분 업 샘플링
     # 5개도 안될 경우 Fold train set 안에 레이블이 없을 수도 있으므로
-    upsample_to_limit(raw_converted, 5)
+    # raw_converted = upsample_to_limit(raw_converted, 5)
 
     raw_converted.to_excel(f"{root_path}/train_new.xlsx", "combined_all", index=False, engine="xlsxwriter")
 
@@ -48,6 +48,8 @@ def upsample_to_limit(df: pd.DataFrame, limit: int):
         label_rows = df[df["label"] == label]
         label_count = label_rows.count()["label"]
         print(f"{label} : {label_count}")
+    
+    return df
 
 
 def convert_orgin(source: pd.DataFrame):

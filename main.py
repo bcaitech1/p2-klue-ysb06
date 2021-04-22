@@ -96,8 +96,9 @@ def run_pipeline(target: Union[int, None]):
         seed_everything(seed)
 
         # 옛날 방식과 호환이 안 된다...이럴 거면 뭐하러 프로그램 구조를 이렇게 짰나...ㅠㅠ
-        # train_dataset, valid_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"], data_type="train_new")
+        # train_dataset, valid_dataset = load_dataset(data_root=config["data_root"], tokenizer=model_info["name"], data_type="train")
         train_dataset, valid_dataset = load_k_fold_train_dataset(data_root=config["data_root"], tokenizer=model_info["name"], seed=seed)
+
 
         # Base Model 이름, 타입 yaml 설정 읽기
         trainee_class = getattr(trainer, trainee_setting["trainee_type"])
@@ -112,9 +113,9 @@ def run_pipeline(target: Union[int, None]):
             config["tensorboard_log_path"], 
             config["train_log_path"]
         ) # Training
-        # predict(f"./results/checkpoint/{trainee.name}/last_checkpoint/", "Bert", device)
+        # predict(f"./results/checkpoint/{trainee.name}/last_checkpoint/", model_info["name"], model_info["type"], device)
         predict_fold_enssemble(
-            f"./results/checkpoint/{trainee.name}/last_checkpoint/",
+            f"./results/checkpoint/{trainee.name}",
             model_info["name"], 
             model_info["type"], 
             device
@@ -131,16 +132,30 @@ def seed_everything(seed: int):
     random.seed(seed)
 
 if __name__ == "__main__":
-    run_pipeline(None)
+    # run_pipeline(None)
 
-    # print(f"PyTorch version: [{torch.__version__}]")
-    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    # print(f"  Target device: [{device}]")
+    print(f"PyTorch version: [{torch.__version__}]")
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(f"  Target device: [{device}]")
 
     # name = "kor-bert-new-data"
 
     # predict(f"./results/checkpoint/{name}/last_checkpoint", "Bert", device)
     # predict_fold_enssemble(f"./results/checkpoint/kor-bert-k-fold/last_checkpoint", "kykim/bert-kor-base", "Bert", device)
+
+    # predict_fold_enssemble(
+    #     f"./results/checkpoint/xlm-roberta-fold-origin",
+    #     "xlm-roberta-large", 
+    #     "XLMRoberta", 
+    #     device
+    # )
+    
+    predict(
+        f"./results/checkpoint/xlm-roberta-one/last_checkpoint",
+        "xlm-roberta-large", 
+        "XLMRoberta", 
+        device
+    )
 
 # 5개중 가장 성능 높은 것 제출
 # xlm-???? 적용 (앙상블 하지 말고)
