@@ -132,11 +132,11 @@ def seed_everything(seed: int):
     random.seed(seed)
 
 if __name__ == "__main__":
-    # run_pipeline(None)
+    run_pipeline(None)
 
-    print(f"PyTorch version: [{torch.__version__}]")
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    print(f"  Target device: [{device}]")
+    # print(f"PyTorch version: [{torch.__version__}]")
+    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # print(f"  Target device: [{device}]")
 
     # name = "kor-bert-new-data"
 
@@ -150,12 +150,12 @@ if __name__ == "__main__":
     #     device
     # )
     
-    predict(
-        f"./results/checkpoint/xlm-roberta-one/last_checkpoint",
-        "xlm-roberta-large", 
-        "XLMRoberta", 
-        device
-    )
+    # predict(
+    #     f"./results/checkpoint/xlm-roberta-one/last_checkpoint",
+    #     "xlm-roberta-large", 
+    #     "XLMRoberta", 
+    #     device
+    # )
 
 # 5개중 가장 성능 높은 것 제출
 # xlm-???? 적용 (앙상블 하지 말고)
